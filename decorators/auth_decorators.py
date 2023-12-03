@@ -7,6 +7,7 @@ import os
 from jsonwebtoken import decode, encode
 from utils.validator import Validator
 from datetime import datetime, UTC
+from utils.methods import generate_hash
 
 
 @exception_handler

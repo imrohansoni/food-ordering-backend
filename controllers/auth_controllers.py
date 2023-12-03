@@ -10,17 +10,8 @@ from jsonwebtoken import encode, decode
 from functools import wraps
 from bson import ObjectId
 from utils.validator import Validator
-from utils.methods import exception_handler
+from utils.methods import exception_handler, generate_hash
 from utils.constants import UserTypes
-
-
-def generate_hash(data):
-    json_data = json.dumps({
-        **data
-    }, sort_keys=True) + os.environ.get("HASH_SECRET")
-
-    hash_string = sha256(json_data.encode()).hexdigest()
-    return hash_string
 
 
 @exception_handler

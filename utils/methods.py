@@ -2,6 +2,18 @@ import re
 from functools import wraps
 from flask import request, jsonify
 from .validator import ValidationError
+import json
+import os
+from hashlib import sha256
+
+
+def generate_hash(data):
+    json_data = json.dumps({
+        **data
+    }, sort_keys=True) + os.environ.get("HASH_SECRET")
+
+    hash_string = sha256(json_data.encode()).hexdigest()
+    return hash_string
 
 
 def exception_handler(handler):
