@@ -81,15 +81,14 @@ def send_code():
 
 @exception_handler
 def update_mobile():
-    mobile_number = request.get_json()
+    data = request.get_json()
     user_id = g.user_data.get("_id")
 
     result = db.get_collection("users").update_one({
         "_id": ObjectId(user_id),
-        "active": True
     }, {
         "$set": {
-            "mobile_number": mobile_number
+            "mobile_number": data.get("mobile_number")
         }
     })
 
