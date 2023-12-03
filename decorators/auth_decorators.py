@@ -55,7 +55,7 @@ def access_permission(authorized_users: list):
     def decorated_wrapper(handler):
         @wraps(handler)
         def decorated_fun(*args, **kwargs):
-            current_user_type = request.user_data.get("user_type")
+            current_user_type = g.user_data.get("user_type")
             if current_user_type not in authorized_users:
                 return jsonify({
                     "status": "fail",
@@ -82,19 +82,20 @@ def check_mobile_number(handler):
 
         user = db.get_collection("users").find_one({
             "mobile_number": mobile_number
-        }, {
-            "$projection": {
+        },
+            projection={
                 "mobile_number": 1
             }
-        })
+        )
 
         if user is not None:
             return jsonify({
                 "status": "fail",
                 "message": "please use different number"
-            })
+            }), 400
 
         return handler(*args, **kwargs)
+
     return decorator_fun
 
 
@@ -138,4 +139,5 @@ def verify_code(handler):
             }), 400
 
         return handler(*args, **kwargs)
+
     return decorator_fun
