@@ -8,6 +8,7 @@ from jsonwebtoken import decode, encode
 from utils.validator import Validator
 from datetime import datetime, UTC
 from utils.methods import generate_hash
+from utils.response_messages import *
 
 
 @exception_handler
@@ -107,8 +108,11 @@ def verify_code(handler):
         validator = (Validator(data)
                      .field("mobile_number")
                      .required("Please provide the mobile number")
+                     .match_pattern(r'^[0-9]{10}$', INVALID_MOBILE_NUMBER)
                      .field("code")
                      .required("please provide the verification code")
+                     .validate(lambda value: len(value) == 4, "Please provide a valid verification code")
+                     .is_number("Verification code must be a number")
                      .field("expires_at")
                      .required("Please provide the expires at")
                      .field("hash")

@@ -1,22 +1,51 @@
+import cloudinary
 from bson import ObjectId
 from flask import json, jsonify, request
-from utils.validator import Validator
+from utils.validator import Validator, ValidationError
 from database.db import db
 from datetime import datetime, UTC
 from utils.methods import exception_handler
+from cloudinary.utils import cloudinary_url
+from cloudinary.uploader import upload
+
+cloudinary.config(secure=True)
 
 
 @exception_handler
 def create_category():
-    validator = (Validator(request.get_json())
-                 .field("category_name")
-                 .required("please enter the category name")
-                 .field("description")
-                 .required("please enter the description of the category")
-                 .execute())
+    data = (Validator(request.form.to_dict())
+            .field("name")
+            .required("please enter the category name")
+            .is_string("category name must be a string")
+            .validate(lambda value: len(value) <= 24, "category name must be less then or equal to 24 letters")
+            .field("description")
+            .required("please enter the description of the category")
+            .is_string("description must be a string")
+            .validate(lambda value: len(value) <= 400, "category name must be less then or equal to 24 letters")
+            .execute())
+
+    if not "category_image" in request.files:
+        return jsonify({
+            "status": "fail",
+            "message": "please provide the category image"
+        }), 400
+
+    category_image = request.files["category_image"]
+
+    if category_image.filename == "":
+        return jsonify({
+            "status": "fail",
+            "message": "please provide the category image"
+        }), 400
+
+    upload_result = upload(category_image, public_id=data.get("name"), overwrite=True)
+
+    image_url, options = cloudinary_url(upload_result['public_id'],
+                                        format=upload_result['format'])
 
     result = db.get_collection("categories").insert_one({
-        **validator,
+        **data,
+        "category_image_url": image_url,
         "created_at": datetime.now(UTC)
     })
 
