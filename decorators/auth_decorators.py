@@ -1,6 +1,6 @@
 from functools import wraps
 from utils.methods import exception_handler
-from flask import g, jsonify, request
+from flask import g, jsonify, request, current_app
 from database.db import db
 from bson import ObjectId
 import os
@@ -11,8 +11,8 @@ from utils.methods import generate_hash
 from utils.response_messages import *
 
 
-@exception_handler
 def authorize(handler):
+    @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
         authorization = request.headers.get("authorization")
@@ -24,14 +24,14 @@ def authorize(handler):
             }), 401
 
         token = authorization.split(" ")[1]
+
         if token is None:
             return jsonify({
                 "status": "fail",
                 "message": "token not found"
             }), 401
-
-        decoded_token = decode(token, os.environ.get(
-            "JWT_SECRET_KEY"), algorithms=["HS256"])
+        secret = current_app.config["JWT_SECRET_KEY"]
+        decoded_token = decode(token, secret, algorithms=["HS256"])
 
         user_id = decoded_token.get("user_id")
 
@@ -51,9 +51,9 @@ def authorize(handler):
     return decorator_fun
 
 
-@exception_handler
 def access_permission(authorized_users: list):
-    def decorated_wrapper(handler):
+    @exception_handler
+    def decorated_fun(handler):
         @wraps(handler)
         def decorated_fun(*args, **kwargs):
             current_user_type = g.user_data.get("user_type")
@@ -67,11 +67,11 @@ def access_permission(authorized_users: list):
 
         return decorated_fun
 
-    return decorated_wrapper
+    return decorated_fun
 
 
-@exception_handler
 def check_mobile_number(handler):
+    @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
         validator = (Validator(request.get_json())
@@ -86,7 +86,7 @@ def check_mobile_number(handler):
         },
             projection={
                 "mobile_number": 1
-            }
+        }
         )
 
         if user is not None:
@@ -100,8 +100,8 @@ def check_mobile_number(handler):
     return decorator_fun
 
 
-@exception_handler
 def verify_code(handler):
+    @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
         data = request.get_json()
@@ -111,7 +111,7 @@ def verify_code(handler):
                      .match_pattern(r'^[0-9]{10}$', INVALID_MOBILE_NUMBER)
                      .field("code")
                      .required("please provide the verification code")
-                     .validate(lambda value: len(value) == 4, "Please provide a valid verification code")
+                     .validate(lambda value: len(str(value)) == 4, "Please provide a valid verification code")
                      .is_number("Verification code must be a number")
                      .field("expires_at")
                      .required("Please provide the expires at")
@@ -123,6 +123,8 @@ def verify_code(handler):
         code = validator.get("code")
         expires_at = validator.get("expires_at")
         user_hash = validator.get("hash")
+
+        print(request.get_json())
 
         if datetime.now(UTC) > datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S.%f%z"):
             return jsonify({
