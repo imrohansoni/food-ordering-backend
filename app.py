@@ -1,16 +1,26 @@
 from flask import Flask, request, jsonify
-from routers.auth_routers import auth_blueprint
-from routers.product_routers import product_blueprint
+from routers.auth_routers import auth_bp
+from routers.product_routers import product_bp
 from routers.category_routers import category_bp
-import traceback
+from routers.account_routers import account_bp
+from dotenv import load_dotenv
+import cloudinary
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
-app.config.from_object('config.Config')
+config = cloudinary.config(
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+)
 
-app.register_blueprint(product_blueprint, url_prefix="/api/v1/products")
-app.register_blueprint(auth_blueprint, url_prefix="/api/v1/auth")
+app.register_blueprint(product_bp, url_prefix="/api/v1/products")
+app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 app.register_blueprint(category_bp, url_prefix="/api/v1/categories")
+app.register_blueprint(account_bp, url_prefix="/api/v1/account")
 
 
 @app.errorhandler(404)
@@ -31,9 +41,20 @@ def method_not_found(error):
 
 @app.errorhandler(Exception)
 def handle_exception(error):
-    print(traceback.format_exc())
     print(error)
     return jsonify({
         "status": "error",
         "message": "something went wrong"
     }), 500
+
+
+environment = os.environ.get("FLASK_ENV")
+
+if environment is None:
+    print("Server is running without any environment ⛔")
+else:
+    print(f"Server is running in {environment} environment 🚀")
+
+
+if __name__ == "__main__":
+    app.run(host="localhost", port=5000, debug=True)
