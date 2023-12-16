@@ -43,12 +43,6 @@ def create_category():
         "name": 1
     })
 
-    if category is not None:
-        return jsonify({
-            "status": "fail",
-            "message": f"{data.get("name")} already exits in the category"
-        }), 400
-
     code = str(uuid.uuid4()).replace("-", "")
     upload_result = upload(category_image,
                            public_id=f"{code}{data.get('name')}",
