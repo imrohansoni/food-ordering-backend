@@ -1,14 +1,13 @@
 import cloudinary
 from bson import ObjectId
-from flask import json, jsonify, request
+from flask import json, jsonify, request, current_app
 from utils.validator import Validator, ValidationError
 from database.db import db
 from datetime import datetime, UTC
 from utils.methods import exception_handler
 from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload
-
-cloudinary.config(secure=True)
+import uuid
 
 
 @exception_handler
@@ -38,7 +37,23 @@ def create_category():
             "message": "please provide the category image"
         }), 400
 
-    upload_result = upload(category_image, public_id=data.get("name"), overwrite=True)
+    category = db.get_collection("categories").find_one({
+        "name": data.get("name")
+    }, projection={
+        "name": 1
+    })
+
+    if category is not None:
+        return jsonify({
+            "status": "fail",
+            "message": f"{data.get("name")} already exits in the category"
+        }), 400
+
+    code = str(uuid.uuid4()).replace("-", "")
+    upload_result = upload(category_image,
+                           public_id=f"{code}{data.get('name')}",
+                           overwrite=True,
+                           folder="categories")
 
     image_url, options = cloudinary_url(upload_result['public_id'],
                                         format=upload_result['format'])
@@ -46,7 +61,9 @@ def create_category():
     result = db.get_collection("categories").insert_one({
         **data,
         "category_image_url": image_url,
-        "created_at": datetime.now(UTC)
+        "image_public_id": upload_result["public_id"],
+        "created_at": datetime.now(UTC),
+        "active": True
     })
 
     inserted_id = result.inserted_id
