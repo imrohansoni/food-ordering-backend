@@ -1,5 +1,4 @@
 import re
-from flask import jsonify, request
 
 
 class ValidationError(Exception):
@@ -7,7 +6,7 @@ class ValidationError(Exception):
         self.errors = errors
 
 
-class FieldValidator:
+class Validator:
     def __init__(self, obj):
         self.obj = obj
         self.errors = []
@@ -114,11 +113,3 @@ class FieldValidator:
         if self.errors.__len__() > 0:
             raise ValidationError(self.errors)
         return self.data
-
-
-class Validator:
-    def __init__(self, obj):
-        self.obj = obj
-
-    def field(self, field_name):
-        return FieldValidator(self.obj).field(field_name)
