@@ -1,4 +1,3 @@
-from math import prod
 from bson import ObjectId
 from flask import jsonify, request
 from controllers.upload_controllers import ALLOWED_IMAGE_EXTENSIONS
@@ -193,4 +192,43 @@ def get_products():
             "length": products.__len__(),
             "products": products
         }
+    })
+
+
+@exception_handler
+def update_product(product_id):
+    data = (Validator(request.form.to_dict())
+            .field("name")
+            .field("description")
+            .field("category_id")
+            .field("type")
+            .field("customizable")
+            .execute())
+
+    if data.get("name") is not None:
+        data["slug"] = create_slug(data.get("name"))
+
+    result = db.get_collection("products").update_one({
+        "_id": ObjectId(product_id)
+    }, {
+        "$set": {
+            **data
+        }
+    })
+
+    if result.matched_count < 1:
+        return jsonify({
+            "status": "fail",
+            "message": "product not found"
+        }), 404
+
+    if result.modified_count < 1:
+        return jsonify({
+            "status": "fail",
+            "message": "failed to update the product"
+        }), 404
+
+    return jsonify({
+        "status": "sucess",
+        "message": "product updated"
     })
