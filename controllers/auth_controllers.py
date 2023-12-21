@@ -1,9 +1,6 @@
 import os
-from sys import exception
 from bson import ObjectId
-
 import requests
-
 from database.db import db
 from flask import request, jsonify, g
 from datetime import datetime, UTC, timedelta
@@ -28,6 +25,7 @@ def login():
             "mobile_number": data.get("mobile_number"),
             "created_at": datetime.now(UTC),
             "user_type": UserTypes.CUSTOMER.value,
+            "active": True,
             "last_updated_at": datetime.now(UTC)
         })
         user_id = result.inserted_id
@@ -118,7 +116,10 @@ def login_admin():
             "message": "account not found"
         })
 
-    password_matched = checkpw(data.get("password"), admin["password"])
+    user_password = data.get("password").encode("utf-8")
+    hashed_password = admin["password"].encode("utf-8")
+
+    password_matched = checkpw(user_password, hashed_password)
 
     if not password_matched:
         return jsonify({
@@ -149,8 +150,10 @@ def change_password():
 
     current_user_id = g.user_data.get("_id")
 
-    password_matched = checkpw(
-        data.get("old_password"), g.user_data.get("password"))
+    user_password = data.get("old_password").encode("utf-8")
+    hashed_password = g.user_data.get("password").encode("utf-8")
+
+    password_matched = checkpw(user_password, hashed_password)
 
     if not password_matched:
         return jsonify({
@@ -158,11 +161,13 @@ def change_password():
             "message": "password is incorrect, try again"
         })
 
+    new_hashed_password = data.get("new_password").encode('utf-8')
+
     result = db.get_collection("users").update_one({
         "_id": ObjectId(current_user_id)
     }, {
         "$set": {
-            "password": hashpw(data.get("new_password"), gensalt(12))
+            "password": hashpw(new_hashed_password, gensalt()).decode('utf-8')
         }
     })
 
