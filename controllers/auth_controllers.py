@@ -1,11 +1,12 @@
 import os
+from wsgiref import validate
 from bson import ObjectId
 import requests
 from database.db import db
 from flask import request, jsonify, g
 from datetime import datetime, UTC, timedelta
 from random import randint
-from jsonwebtoken import encode
+from jsonwebtoken import encode, decode
 from utils.validator import Validator
 from utils.methods import exception_handler, generate_hash
 from utils.constants import UserTypes
@@ -33,7 +34,8 @@ def login():
         user_id = user.get("_id")
 
     auth_token = encode({
-        "user_id": str(user_id)
+        "user_id": str(user_id),
+        "exp": datetime.now(UTC) + timedelta(days=90)
     }, os.environ.get("JWT_SECRET_KEY"))
 
     return jsonify({
@@ -176,6 +178,64 @@ def change_password():
             "status": "fail",
             "message": "failed to update the password"
         })
+
+    return jsonify({
+        "status": "success",
+        "message": "password is updated"
+    })
+
+
+@exception_handler
+def send_password_reset_token():
+    user = request.get_json()
+    mobile_number = user.get("mobile_number")
+
+    user = db.get_collection("users").find_one({
+        "mobile_number": mobile_number,
+        "user_type": UserTypes.ADMIN.value
+    }, projection={
+        "_id": 1
+    })
+
+    password_reset_token = encode(
+        payload={
+            "user_id": str(user["_id"]),
+            "exp": datetime.now(UTC) + timedelta(minutes=5)
+        },
+        key=os.environ.get("JWT_SECRET_KEY"))
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "password_reset_token": password_reset_token
+        }
+    })
+
+
+@exception_handler
+def reset_password():
+    data = (Validator(request.get_json())
+            .field("password_reset_token")
+            .required("please provide the password reset token")
+            .field("new_password")
+            .required("please enter the new password")
+            .execute())
+
+    decoded_token = decode(data.get("password_reset_token"),
+                           key=os.environ.get("JWT_SECRET_KEY"),
+                           algorithms=["HS256"])
+
+    user_id = decoded_token.get("user_id")
+
+    new_hashed_password = data.get("new_password").encode('utf-8')
+
+    result = db.get_collection("users").update_one({
+        "_id": ObjectId(user_id)
+    }, {
+        "$set": {
+            "password": hashpw(new_hashed_password, gensalt()).decode('utf-8')
+        }
+    })
 
     return jsonify({
         "status": "success",

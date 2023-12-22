@@ -1,6 +1,6 @@
 from functools import wraps
 from utils.methods import exception_handler
-from flask import g, jsonify, request, current_app
+from flask import g, jsonify, request
 from database.db import db
 from bson import ObjectId
 import os
@@ -9,6 +9,7 @@ from utils.validator import Validator
 from datetime import datetime, UTC
 from utils.methods import generate_hash
 from utils.response_messages import *
+from utils.constants import UserTypes
 
 
 def authorize(handler):
@@ -30,7 +31,7 @@ def authorize(handler):
                 "status": "fail",
                 "message": "token not found"
             }), 401
-        secret = current_app.config["JWT_SECRET_KEY"]
+        secret = os.environ.get("JWT_SECRET_KEY")
         decoded_token = decode(token, secret, algorithms=["HS256"])
 
         user_id = decoded_token.get("user_id")
@@ -146,4 +147,30 @@ def verify_code(handler):
 
         return handler(*args, **kwargs)
 
+    return decorator_fun
+
+
+def verify_admin_account(handler):
+    @exception_handler
+    @wraps(handler)
+    def decorator_fun(*args, **kwargs):
+        data = (Validator(request.get_json())
+                .field("mobile_number")
+                .required("please provide the mobile number")
+                .execute())
+
+        admin = db.get_collection("users").find_one({
+            "mobile_number": data.get("mobile_number"),
+            "user_type": UserTypes.ADMIN.value
+        }, projection={
+            "mobile_number": 1
+        })
+
+        if admin is None:
+            return jsonify({
+                "status": "fail",
+                "message": "admin account not found"
+            })
+
+        return handler(*args, **kwargs)
     return decorator_fun
