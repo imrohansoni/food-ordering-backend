@@ -7,8 +7,9 @@ class ValidationError(Exception):
 
 
 class Validator:
-    def __init__(self, obj):
+    def __init__(self, obj, files=None):
         self.obj = obj
+        self.files = files
         self.errors = []
         self.data = {}
         self.current_field = None
@@ -37,6 +38,28 @@ class Validator:
             return -1
         else:
             return len(current_field)
+
+    def file(self, filename):
+        self.current_field = filename
+        if filename in self.files and self.files[filename].filename and self.files[filename].filename.split(".")[1]:
+            self.data[filename] = self.files.getlist(filename)
+        return self
+
+    def max_files(self, max_number, message):
+        field_value = self._get_field_value()
+        if field_value is None:
+            return self
+        if len(field_value) > max_number:
+            self._set_error(message)
+        return self
+
+    def min_files(self, min_number, message):
+        field_value = self._get_field_value()
+        if field_value is None:
+            return self
+        if len(field_value) < min_number:
+            self._set_error(message)
+        return self
 
     def field(self, field_name):
         self.current_field = field_name
