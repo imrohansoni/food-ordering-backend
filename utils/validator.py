@@ -31,6 +31,13 @@ class Validator:
             self._set_error(message)
         return self
 
+    def _get_length(self):
+        current_field = self._get_field_value()
+        if current_field is not None and not isinstance(current_field, str):
+            return -1
+        else:
+            return len(current_field)
+
     def field(self, field_name):
         self.current_field = field_name
 
@@ -44,9 +51,6 @@ class Validator:
         if field_value is None:
             self.data[self.current_field] = value
         return self
-
-    def modify(self):
-        pass
 
     def required(self, message):
         field_value = self._get_field_value()
@@ -64,11 +68,27 @@ class Validator:
 
     def is_one_of(self, values, message):
         field_value = self._get_field_value()
-        if field_value is None:
-            return self
-        if not isinstance(values, list):
+        if field_value is None or not isinstance(values, list):
             return self
         if field_value not in values:
+            self._set_error(message)
+        return self
+
+    def min_length(self, length, message):
+        str_length = self._get_length()
+        if str_length < length or str_length < 0:
+            self._set_error(message)
+        return self
+
+    def max_length(self, length, message):
+        str_length = self._get_length()
+        if str_length > length or str_length < 0:
+            self._set_error(message)
+        return self
+
+    def range_length(self, min_length, max_length, message):
+        str_length = self._get_length()
+        if str_length < min_length or str_length > max_length or str_length < 0:
             self._set_error(message)
         return self
 
