@@ -1,5 +1,7 @@
 import re
 
+ALLOWED_IMAGE_EXTENSIONS = ["PNG", "JPEG", "JPG"]
+
 
 class ValidationError(Exception):
     def __init__(self, errors):
@@ -9,7 +11,7 @@ class ValidationError(Exception):
 class Validator:
     def __init__(self, obj, files=None):
         self.obj = obj
-        self.files = files
+        self.files = files or {}
         self.errors = []
         self.data = {}
         self.current_field = None
@@ -39,10 +41,19 @@ class Validator:
         else:
             return len(current_field)
 
-    def file(self, filename):
-        self.current_field = filename
-        if filename in self.files and self.files[filename].filename and self.files[filename].filename.split(".")[1]:
-            self.data[filename] = self.files.getlist(filename)
+    def file_field(self, field_name):
+        self.current_field = field_name
+        if field_name in self.files:
+            files = self.files.getlist(field_name)
+            if all(files) and all(len(file.filename.split(".")) == 2 for file in files):
+                self.data[field_name] = files
+        return self
+
+    def is_image(self, message):
+        files = self._get_field_value()
+        if files and all(file.filename.split(".")[1].upper() in ALLOWED_IMAGE_EXTENSIONS for file in files):
+            return self
+        self._set_error(message)
         return self
 
     def max_files(self, max_number, message):
