@@ -1,14 +1,10 @@
 from bson import ObjectId
 from flask import jsonify, request
-from controllers.upload_controllers import ALLOWED_IMAGE_EXTENSIONS
+from services.image_service import upload_images
 from utils.validator import Validator
 from utils.methods import create_slug, exception_handler
 from database.db import db
 from datetime import datetime, UTC
-import os
-import uuid
-from cloudinary.utils import cloudinary_url
-from cloudinary.uploader import upload
 
 
 @exception_handler
@@ -17,7 +13,6 @@ def create_product():
             .field("name")
             .required("Please enter the product name")
             .field("description")
-            .required("Please enter the description")
             .field("category_id")
             .required("Please provide the category id")
             .field("type")
@@ -67,63 +62,14 @@ def create_product():
 
 @exception_handler
 def set_product_images(product_id):
-    product_images = request.files.getlist("product_images")
+    data = (Validator(request.form.to_dict(), request.files)
+            .file_field("product_images")
+            .required("please provide the product images")
+            .max_files(5, "maximum images can be uploaded")
+            .is_image("please provide the valid images")
+            .execute())
 
-    if product_images.__len__() < 1:
-        return jsonify({
-            "status": "fail",
-            "message": "please provide the images"
-        })
-
-    if product_images.__len__() > 5:
-        return jsonify({
-            "status": "fail",
-            "message": "maximum of 5 images can be uploaded at once"
-        })
-
-    for img in product_images:
-        if img.filename == "" or not "." in img.filename or not img.filename.rsplit(".", 1)[1].upper() in ALLOWED_IMAGE_EXTENSIONS:
-            return jsonify({
-                "status": "fail",
-                "message": "image not provided or invalid extensions"
-            }), 400
-
-    uploaded_images = []
-
-    for img in product_images:
-        code = str(uuid.uuid4()).replace("-", "")
-
-        if os.environ.get("FLASK_ENV") == "development":
-            upload_folder = "uploads/products"
-
-            if not os.path.exists(upload_folder):
-                os.makedirs(upload_folder)
-
-            image_filename = f"{code}{img.filename}"
-            upload_path = os.path.join(upload_folder, image_filename)
-            img.save(upload_path)
-
-            uploaded_images.append({
-                "_id": ObjectId(),
-                "image_url": os.path.abspath(upload_path),
-                "image_id": image_filename
-            })
-
-        else:
-            upload_result = upload(img,
-                                   public_id=f"{code}{img.filename}",
-                                   overwrite=True,
-                                   folder="categories")
-
-            image_id = upload_result['public_id']
-            image_url, _ = cloudinary_url(image_id,
-                                          format=upload_result['format'])
-
-            uploaded_images.append({
-                "_id": ObjectId(),
-                "image_url": image_url,
-                "image_id": image_id
-            })
+    uploaded_images = upload_images(data.get("product_images"), "products")
 
     result = db.get_collection("products").update_one({
         "_id": ObjectId(product_id)
@@ -172,7 +118,7 @@ def remove_product_image(product_id, product_image_id):
         }), 404
 
     return jsonify({
-        "status": "sucess",
+        "status": "success",
         "message": "product image deleted"
     })
 
@@ -229,6 +175,6 @@ def update_product(product_id):
         }), 404
 
     return jsonify({
-        "status": "sucess",
+        "status": "success",
         "message": "product updated"
     })
