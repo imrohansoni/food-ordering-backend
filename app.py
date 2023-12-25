@@ -1,11 +1,14 @@
+import os
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+import cloudinary
+
+
 from routers.auth_routers import auth_bp
 from routers.product_routers import product_bp
 from routers.category_routers import category_bp
 from routers.account_routers import account_bp
-from dotenv import load_dotenv
-import cloudinary
-import os
+from routers.favorite_routers import favorite_bp
 
 load_dotenv()
 
@@ -21,10 +24,12 @@ app.register_blueprint(product_bp, url_prefix="/api/v1/products")
 app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 app.register_blueprint(category_bp, url_prefix="/api/v1/categories")
 app.register_blueprint(account_bp, url_prefix="/api/v1/account")
+app.register_blueprint(favorite_bp, url_prefix="/api/v1/favorites")
 
 
 @app.errorhandler(404)
 def page_not_found(error):
+    print(error)
     return jsonify({
         "status": "fail",
         "message": f"{request.path} is not found"
@@ -33,6 +38,7 @@ def page_not_found(error):
 
 @app.errorhandler(405)
 def method_not_found(error):
+    print(error)
     return jsonify({
         "status": "fail",
         "message": f"{request.method} is not defined on {request.path}"
