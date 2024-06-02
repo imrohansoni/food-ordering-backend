@@ -1,33 +1,37 @@
 import os
-from wsgiref import validate
-from bson import ObjectId
-import requests
-from database.db import db
-from flask import request, jsonify, g
-from datetime import datetime, UTC, timedelta
+import random
+from datetime import datetime, timezone, timedelta
 from random import randint
+
+from bson import ObjectId
+from flask import request, jsonify, g
+import requests
 from jsonwebtoken import encode, decode
+from bcrypt import checkpw, gensalt, hashpw
+from database.db import get_db
 from utils.validator import Validator
 from utils.methods import exception_handler, generate_hash
-from utils.constants import UserTypes
-from utils.response_messages import *
-from bcrypt import checkpw, gensalt, hashpw
+from utils.constants import UserTypes, Environment
+from utils.response_messages import INVALID_MOBILE_NUMBER, NO_MOBILE
 
 
 @exception_handler
 def login():
     data = request.get_json()
+    db = get_db()
+
     user = db["users"].find_one({
         "mobile_number": data.get("mobile_number")
     })
+    utc_now = datetime.now(timezone.utc)
 
     if user is None:
         result = db["users"].insert_one({
             "mobile_number": data.get("mobile_number"),
-            "created_at": datetime.now(UTC),
+            "created_at": utc_now,
             "user_type": UserTypes.CUSTOMER.value,
             "active": True,
-            "last_updated_at": datetime.now(UTC)
+            "last_updated_at": utc_now
         })
         user_id = result.inserted_id
     else:
@@ -35,7 +39,7 @@ def login():
 
     auth_token = encode({
         "user_id": str(user_id),
-        "exp": datetime.now(UTC) + timedelta(days=90)
+        "exp": utc_now + timedelta(days=90)
     }, os.environ.get("JWT_SECRET_KEY"))
 
     return jsonify({
@@ -56,27 +60,34 @@ def send_code():
 
     mobile_number = validator.get("mobile_number")
 
-    code = randint(1234, 9876)
+    code = randint(1234, 4321)
 
-    if os.environ.get("FLASK_ENV") == "production":
+    send_sms = os.environ.get("SEND_SMS") == "true"
+    flask_env = os.environ.get("FLASK_ENV")
+
+    if flask_env == Environment.PRODUCTION.value and send_sms:
         sms_response = requests.get(os.environ.get("SMS_BASE_URL"), params={
             "route": "otp",
             "authorization": os.environ.get("SMS_AUTHORIZATION"),
             "variables_values": code,
             "flash": 0,
             "numbers": mobile_number
-        })
+        }, timeout=2000)
         response = sms_response.json()
 
         if response.get("return") is False:
-            print(response.get("message"))
+            print(code)
+            return jsonify({
+                "status": "fail",
+                "message": response.get("message")
+            })
     else:
         print(f"verification code = {code}")
 
-    current_time = datetime.now(UTC)
+    utc_now = datetime.now(timezone.utc)
 
     expires_at = str(
-        current_time + timedelta(minutes=int(os.environ.get("VERIFICATION_CODE_EXPIRES"))))
+        utc_now + timedelta(minutes=int(os.environ.get("VERIFICATION_CODE_EXPIRES"))))
 
     hash_string = generate_hash({
         "mobile_number": mobile_number,
@@ -96,6 +107,7 @@ def send_code():
 
 @exception_handler
 def login_admin():
+    db = get_db()
     data = (Validator(request.get_json())
             .field("mobile_number")
             .required("please provide the mobile number")
@@ -103,7 +115,7 @@ def login_admin():
             .required("please provide the password")
             .execute())
 
-    admin = db.get_collection("users").find_one({
+    admin = db["users"].find_one({
         "mobile_number": data.get("mobile_number"),
         "user_type": "admin"
     }, projection={
@@ -114,8 +126,11 @@ def login_admin():
 
     if admin is None:
         return jsonify({
+            "ok": False,
             "status": "fail",
-            "message": "account not found"
+            "errors": {
+                'mobile_number': "mobile number doesn't exit"
+            }
         })
 
     user_password = data.get("password").encode("utf-8")
@@ -125,8 +140,11 @@ def login_admin():
 
     if not password_matched:
         return jsonify({
+            "ok": False,
             "status": "fail",
-            "message": "password is incorrect, try again"
+            "errors": {
+                'password': 'password is incorrect'
+            }
         })
 
     auth_token = encode({
@@ -143,6 +161,7 @@ def login_admin():
 
 @exception_handler
 def change_password():
+    db = get_db()
     data = (Validator(request.get_json())
             .field("old_password")
             .required("please provide the old password")
@@ -165,7 +184,7 @@ def change_password():
 
     new_hashed_password = data.get("new_password").encode('utf-8')
 
-    result = db.get_collection("users").update_one({
+    result = db["users"].update_one({
         "_id": ObjectId(current_user_id)
     }, {
         "$set": {
@@ -187,20 +206,22 @@ def change_password():
 
 @exception_handler
 def send_password_reset_token():
+    db = get_db()
     user = request.get_json()
     mobile_number = user.get("mobile_number")
 
-    user = db.get_collection("users").find_one({
+    user = db["users"].find_one({
         "mobile_number": mobile_number,
         "user_type": UserTypes.ADMIN.value
     }, projection={
         "_id": 1
     })
+    utc_now = datetime.now(timezone.utc)
 
     password_reset_token = encode(
         payload={
             "user_id": str(user["_id"]),
-            "exp": datetime.now(UTC) + timedelta(minutes=5)
+            "exp": utc_now + timedelta(minutes=5)
         },
         key=os.environ.get("JWT_SECRET_KEY"))
 
@@ -214,6 +235,8 @@ def send_password_reset_token():
 
 @exception_handler
 def reset_password():
+    db = get_db()
+
     data = (Validator(request.get_json())
             .field("password_reset_token")
             .required("please provide the password reset token")
@@ -229,7 +252,7 @@ def reset_password():
 
     new_hashed_password = data.get("new_password").encode('utf-8')
 
-    result = db.get_collection("users").update_one({
+    db["users"].update_one({
         "_id": ObjectId(user_id)
     }, {
         "$set": {

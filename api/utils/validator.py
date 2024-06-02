@@ -12,7 +12,7 @@ class Validator:
     def __init__(self, obj, files=None):
         self.obj = obj
         self.files = files or {}
-        self.errors = []
+        self.errors = {}
         self.data = {}
         self.current_field = None
 
@@ -23,10 +23,11 @@ class Validator:
         return self.data.get(field)
 
     def _set_error(self, message):
-        self.errors.append({
-            "field": self.current_field,
-            "message": message
-        })
+        self.errors[self.current_field] = message
+        # self.errors.append({
+        #     "field": self.current_field,
+        #     "message": message
+        # })
 
     def _is_type(self, type_name, message):
         field_value = self._get_field_value()

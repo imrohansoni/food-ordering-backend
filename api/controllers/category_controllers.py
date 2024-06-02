@@ -1,14 +1,15 @@
 from bson import ObjectId
 from flask import jsonify, request
 from services.image_service import upload_images
+from database.db import get_db
+from datetime import datetime, timezone
 from utils.validator import Validator
-from database.db import db
-from datetime import datetime, UTC
 from utils.methods import exception_handler
 
 
 @exception_handler
 def create_category():
+    db = get_db()
     data = (Validator(request.form.to_dict(), request.files)
             .field("name")
             .required("please enter the category name")
@@ -32,7 +33,7 @@ def create_category():
     if category is not None:
         return jsonify({
             "status": "fail",
-            "message": f"{category["name"]} is not already exits"
+            "message": f"{category['name']} is not already exits"
         })
 
     uploaded_image = upload_images(
@@ -40,10 +41,12 @@ def create_category():
 
     del data["category_image"]
 
+    utc_now = datetime.now(timezone.utc)
+
     result = db.get_collection("categories").insert_one({
         **data,
-        "category_image": uploaded_image,
-        "created_at": datetime.now(UTC),
+        **uploaded_image[0],
+        "created_at": utc_now,
         "active": True
     })
 
@@ -59,6 +62,7 @@ def create_category():
 
 @exception_handler
 def get_categories():
+    db = get_db()
     categories = list(db.get_collection("categories").find())
 
     for category in categories:
@@ -74,6 +78,7 @@ def get_categories():
 
 @exception_handler
 def delete_category(category_id):
+    db = get_db()
     result = db.get_collection("categories").delete_one({
         "_id": ObjectId(category_id)
     })
@@ -92,8 +97,11 @@ def delete_category(category_id):
 
 @exception_handler
 def update_category(category_id):
-    validator = Validator(request.get_json()).field(
-        "category_name").field("description").execute()
+    db = get_db()
+    validator = (Validator(request.get_json())
+                 .field("category_name")
+                 .field("description")
+                 .execute())
 
     result = db.get_collection("categories").update_one({
         "_id": ObjectId(category_id)

@@ -12,11 +12,12 @@ def upload_images(files, foldername):
     if os.environ.get("FLASK_ENV") == "development":
         for file in files:
             code = str(uuid.uuid4()).replace("-", "")
-            if not os.path.exists(f"uploads/{foldername}"):
-                os.makedirs(f"uploads/{foldername}")
+            if not os.path.exists(f"../uploads/{foldername}"):
+                os.makedirs(f"../uploads/{foldername}")
 
             image_filename = f"{code}{secure_filename(file.filename)}"
-            upload_path = os.path.join(f"uploads/{foldername}", image_filename)
+            upload_path = os.path.join(
+                f"../uploads/{foldername}", image_filename)
             file.save(upload_path)
 
             uploaded_images.append({
@@ -26,9 +27,7 @@ def upload_images(files, foldername):
     else:
         for file in files:
             code = str(uuid.uuid4()).replace("-", "")
-            upload_result = upload(file,
-                                   public_id=f"{code}{
-                                       secure_filename(file.filename)}",
+            upload_result = upload(file, public_id=f"{code}{secure_filename(file.filename)}",
                                    overwrite=True,
                                    folder=foldername)
 

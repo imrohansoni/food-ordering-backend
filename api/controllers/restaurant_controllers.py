@@ -7,7 +7,7 @@ from utils.methods import create_slug
 from services.image_service import upload_images
 
 
-def save_res_basic_details():
+def create_restaurant():
     data = (Validator(request.form.to_dict())
             .field("res_name")
             .required("Please enter your restaurant's name")
@@ -81,7 +81,7 @@ def save_res_basic_details():
     })
 
 
-def save_res_timing():
+def add_restaurant_timing():
     data = (Validator(request.form.to_dict())
             .field("res_id")
             .required("restaurant id is required")
@@ -117,7 +117,7 @@ def save_res_timing():
     })
 
 
-def save_res_images():
+def add_restaurant_images():
     data = (Validator(request.form.to_dict(), request.files)
             .field("restaurant_id")
             .required("please provide the restaurant id")
@@ -151,8 +151,9 @@ def save_res_images():
     }), 200
 
 
-def get_restaurants():
+def get_my_restaurants():
     owner_id = g.user_data.get("_id")
+
     restaurants = list(db["restaurants"].find({
         "owner_id": owner_id
     }))
@@ -182,6 +183,22 @@ def delete_restaurant(restaurant_id):
 
     return jsonify({
         "status": "success"
+    })
+
+
+def get_all_restaurants():
+    restaurants = db["restaurants"].find()
+    for res in restaurants:
+        res["_id"] = str(res["_id"])
+
+    # filtering, sorting, aliases
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "length": restaurants.__len__(),
+            "restaurants": restaurants
+        }
     })
 
 

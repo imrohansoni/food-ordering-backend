@@ -1,10 +1,12 @@
 import re
 from functools import wraps
-from flask import request, jsonify
+import traceback
+from flask import jsonify
 from .validator import ValidationError
 import json
 import os
 from hashlib import sha256
+from utils.constants import Environment
 
 
 def generate_hash(data):
@@ -22,15 +24,26 @@ def exception_handler(handler):
         try:
             return handler(*args, **kwargs)
         except ValidationError as e:
+            print(e)
             return jsonify({
                 "status": "fail",
                 "errors": e.errors
-            })
+            }), 400
         except Exception as e:
+            print(e)
+            traceback.print_exc()
+
+            if os.environ.get("FLASK_ENV") == Environment.DEVELOPMENT.value:
+                return jsonify({
+                    "stack": traceback.print_stack(),
+                    "status": "fail",
+                    "errors": str(e)
+                }), 400
+
             return jsonify({
                 "status": "fail",
                 "errors": str(e)
-            })
+            }), 400
 
     return decorator_fun
 

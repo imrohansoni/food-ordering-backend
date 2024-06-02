@@ -3,7 +3,7 @@ from flask import g, request, jsonify
 
 from utils.validator import Validator
 from database.db import db
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 
 def add_to_favorite():
@@ -25,10 +25,12 @@ def add_to_favorite():
             "message": "product not found"
         }), 404
 
+    utc_now = datetime.now(timezone.utc)
+
     db["favorites"].insert_one({
         "user_id": user_id,
         "product_id": product.get("_id"),
-        "created_at": datetime.now(UTC)
+        "created_at": utc_now
     })
 
     return jsonify({

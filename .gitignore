@@ -5,4 +5,8 @@ __pycache__/
 .pytest_cache
 .env
 config.py
-tests/output.json
+tests/
+uploads
+pylint.rc
+.github
+

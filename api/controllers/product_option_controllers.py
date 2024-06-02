@@ -6,7 +6,7 @@ from database.db import db
 
 
 @exception_handler
-def create_option_group(product_id):
+def create_option(product_id):
     data = (Validator(request.get_json())
             .field("title")
             .required("Please enter the option group title")
@@ -20,7 +20,7 @@ def create_option_group(product_id):
         "customizable": True
     }, {
         "$set": {
-            "option_group": {
+            "option": {
                 **data
             }
         }

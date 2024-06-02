@@ -9,7 +9,7 @@ headers = {
 
 
 def test_send_code():
-    mobile_number = "8851138132"
+    mobile_number = "8076803610"
 
     res = requests.post(f"{BASE_URL}/auth/send-code", json={
         "mobile_number": mobile_number

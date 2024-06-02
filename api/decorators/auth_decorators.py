@@ -1,12 +1,12 @@
 from functools import wraps
 from utils.methods import exception_handler
 from flask import g, jsonify, request
-from database.db import db
+from database.db import get_db
 from bson import ObjectId
 import os
 from jsonwebtoken import decode, encode
 from utils.validator import Validator
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from utils.methods import generate_hash
 from utils.response_messages import *
 from utils.constants import UserTypes
@@ -16,7 +16,9 @@ def authorize(handler):
     @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
+        db = get_db()
         authorization = request.headers.get("authorization")
+        print(authorization)
 
         if authorization is None or not authorization.startswith("Bearer"):
             return jsonify({
@@ -31,14 +33,16 @@ def authorize(handler):
                 "status": "fail",
                 "message": "token not found"
             }), 401
+
         secret = os.environ.get("JWT_SECRET_KEY")
         decoded_token = decode(token, secret, algorithms=["HS256"])
 
         user_id = decoded_token.get("user_id")
 
-        user = db.get_collection("users").find_one({
+        user = db["users"].find_one({
             "_id": ObjectId(user_id)
         })
+        print(user)
 
         if user is None:
             return jsonify({
@@ -60,6 +64,7 @@ def access_permission(authorized_users: list):
             current_user_type = g.user_data.get("user_type")
             if current_user_type not in authorized_users:
                 return jsonify({
+                    "ok": False,
                     "status": "fail",
                     "message": "you can not access this route"
                 }), 401
@@ -75,6 +80,7 @@ def check_mobile_number(handler):
     @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
+        db = get_db()
         validator = (Validator(request.get_json())
                      .field("mobile_number")
                      .required("Please enter the mobile number")
@@ -82,7 +88,7 @@ def check_mobile_number(handler):
 
         mobile_number = validator.get("mobile_number")
 
-        user = db.get_collection("users").find_one({
+        user = db["users"].find_one({
             "mobile_number": mobile_number
         },
             projection={
@@ -92,6 +98,7 @@ def check_mobile_number(handler):
 
         if user is not None:
             return jsonify({
+                "ok": False,
                 "status": "fail",
                 "message": "please use different number"
             }), 400
@@ -125,9 +132,9 @@ def verify_code(handler):
         expires_at = validator.get("expires_at")
         user_hash = validator.get("hash")
 
-        print(request.get_json())
+        utc_now = datetime.now(timezone.utc)
 
-        if datetime.now(UTC) > datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S.%f%z"):
+        if utc_now > datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S.%f%z"):
             return jsonify({
                 "status": "fail",
                 "message": "verification code is expired"
@@ -154,12 +161,14 @@ def verify_admin_account(handler):
     @exception_handler
     @wraps(handler)
     def decorator_fun(*args, **kwargs):
+        db = get_db()
+
         data = (Validator(request.get_json())
                 .field("mobile_number")
                 .required("please provide the mobile number")
                 .execute())
 
-        admin = db.get_collection("users").find_one({
+        admin = db["users"].find_one({
             "mobile_number": data.get("mobile_number"),
             "user_type": UserTypes.ADMIN.value
         }, projection={
